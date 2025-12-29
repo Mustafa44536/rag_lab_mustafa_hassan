@@ -1,0 +1,5 @@
+azure-functions
+python-dotenv
+lancedb
+sentence-transformers
+google-genai

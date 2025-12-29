@@ -8,10 +8,12 @@ import os
 import lancedb
 from sentence_transformers import SentenceTransformer
 from google import genai
+from pathlib import Path
 
 load_dotenv()
 
-DB_DIR = "knowledge_base"
+BASE_DIR = Path(__file__).resolve().parents[1]
+DB_DIR = str(BASE_DIR / "knowledge_base")
 TABLE_NAME = "transcripts"
 
 @dataclass
