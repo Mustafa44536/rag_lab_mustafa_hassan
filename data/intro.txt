@@ -1,0 +1,1 @@
+RAG = Retrieval Augmented Generation. It retrieves relevant context and uses it to answer.

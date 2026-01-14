@@ -1,85 +1,74 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import List
-from dotenv import load_dotenv
 import os
+from pathlib import Path
+from typing import Optional, List
 
+from dotenv import load_dotenv
 import lancedb
 from sentence_transformers import SentenceTransformer
-from google import genai
-from pathlib import Path
+from pydantic_ai import Agent
 
 load_dotenv()
 
+# Paths
 BASE_DIR = Path(__file__).resolve().parents[1]
 DB_DIR = str(BASE_DIR / "knowledge_base")
 TABLE_NAME = "transcripts"
 
-@dataclass
-class RetrievedChunk:
-    source: str
-    text: str
-    score: float
+# Lazy singletons
+_embedder: Optional[SentenceTransformer] = None
+_table = None
 
-class RAGChatbot:
-    def __init__(self, top_k: int = 3) -> None:
-        self.top_k = top_k
-        self.embedder = SentenceTransformer("all-MiniLM-L6-v2")
+def _get_embedder() -> SentenceTransformer:
+    global _embedder
+    if _embedder is None:
+        _embedder = SentenceTransformer("all-MiniLM-L6-v2")
+    return _embedder
 
-        api_key = os.getenv("GOOGLE_API_KEY")
-        if not api_key:
-            raise RuntimeError("Missing GOOGLE_API_KEY in environment")
+def _get_table():
+    global _table
+    if _table is None:
+        db = lancedb.connect(DB_DIR)
+        _table = db.open_table(TABLE_NAME)
+    return _table
 
-        # New Gemini SDK client
-        self.client = genai.Client(api_key=api_key)
+# Agent (uses env var GOOGLE_API_KEY automatically)
+rag_agent = Agent(
+    model="google-gla:models/gemini-flash-latest",
+    retries=1,
+    system_prompt=(
+        "You are The Youtuber - a friendly Data Engineering educator. "
+        "Answer based ONLY on the provided retrieved context. "
+        "If context is insufficient, say you don't know. "
+        "Max 5 sentences. Always mention which source file(s) you used."
+    ),
+)
 
-        self.db = lancedb.connect(DB_DIR)
-        self.table = self.db.open_table(TABLE_NAME)
+@rag_agent.tool_plain
+def retrieve_top_documents(query: str, k: int = 3) -> str:
+    """
+    Vector search in LanceDB (uses embeddings stored in 'vector' column).
+    """
+    table = _get_table()
+    embedder = _get_embedder()
+    qvec = embedder.encode(query).tolist()
 
-    def retrieve(self, query: str) -> List[RetrievedChunk]:
-        qvec = self.embedder.encode(query).tolist()
-        results = self.table.search(qvec).limit(self.top_k).to_list()
+    results = table.search(qvec).limit(k).to_list()
+    if not results:
+        return "No matches found in the knowledge base."
 
-        chunks: List[RetrievedChunk] = []
-        for r in results:
-            chunks.append(
-                RetrievedChunk(
-                    source=r.get("source", ""),
-                    text=r.get("text", ""),
-                    score=float(r.get("_distance", 0.0)),
-                )
-            )
-        return chunks
+    blocks: List[str] = []
+    for r in results:
+        src = r.get("source", "")
+        text = r.get("text", "")
+        blocks.append(f"SOURCE: {src}\n{text}")
+    return "\n\n---\n\n".join(blocks)
 
-    def answer(self, question: str) -> str:
-        chunks = self.retrieve(question)
-        context = "\n\n".join([f"[{c.source}]\n{c.text}" for c in chunks])
-
-        system_persona = (
-            "You are a friendly Data Engineering YouTuber. "
-            "Answer clearly and practically. "
-            "Base your answer only on the provided context. "
-            "If the context is not enough, say you don't know."
-        )
-
-        prompt = f"""{system_persona}
-
-CONTEXT:
-{context}
-
-QUESTION:
-{question}
-
-ANSWER:
-"""
-
-        # Use a commonly available model name in the new SDK
-        resp = self.client.models.generate_content(
-            model="models/gemini-flash-latest",
-            contents=prompt,
-        )
-
-        # resp.text is typically available; fallback to string conversion
-        text = getattr(resp, "text", None)
-        return (text if text else str(resp)).strip()
+def chat(question: str) -> dict:
+    prompt = (
+        "Use the tool retrieve_top_documents to fetch context, then answer.\n\n"
+        f"QUESTION: {question}"
+    )
+    result = rag_agent.run_sync(prompt)
+    return {"question": question, "answer": result.output}

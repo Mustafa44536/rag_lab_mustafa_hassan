@@ -1,17 +1,21 @@
 from pathlib import Path
+
 import lancedb
 from sentence_transformers import SentenceTransformer
 
-from backend.constans import DATA_PATH, VECTOR_PATH, TABLE_NAME
+DATA_DIR = Path("data")
+DB_DIR = Path("knowledge_base")
+TABLE_NAME = "transcripts"
 
 def main() -> None:
-    files = sorted(list(DATA_PATH.glob("*.md")) + list(DATA_PATH.glob("*.txt")))
+    files = sorted(list(DATA_DIR.glob("*.md")) + list(DATA_DIR.glob("*.txt")))
     if not files:
-        raise RuntimeError(f"No .md or .txt files found in {DATA_PATH}")
+        raise RuntimeError("No .md or .txt files found in /data")
 
     model = SentenceTransformer("all-MiniLM-L6-v2")
-    VECTOR_PATH.mkdir(parents=True, exist_ok=True)
-    db = lancedb.connect(str(VECTOR_PATH))
+
+    DB_DIR.mkdir(parents=True, exist_ok=True)
+    db = lancedb.connect(str(DB_DIR))
 
     records = []
     for fp in files:
@@ -30,7 +34,7 @@ def main() -> None:
     else:
         db.create_table(TABLE_NAME, data=records)
 
-    print(f"✅ Ingested {len(records)} docs into {VECTOR_PATH}/{TABLE_NAME}")
+    print(f"✅ Ingested {len(records)} documents into {DB_DIR}/{TABLE_NAME}")
 
 if __name__ == "__main__":
     main()
