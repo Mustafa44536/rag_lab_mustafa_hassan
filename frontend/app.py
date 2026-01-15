@@ -1,9 +1,13 @@
+import os
 import streamlit as st
 import requests
 
-API_URL = "http://127.0.0.1:8000/rag/query"
+# Default: FastAPI local
+API_URL = os.getenv("RAG_API_URL", "http://127.0.0.1:8001/rag/query")
 
 st.title("RAG Chatbot")
+
+st.caption(f"API: {API_URL}")
 
 if "messages" not in st.session_state:
     st.session_state.messages = []
@@ -21,9 +25,15 @@ if user_q:
 
     with st.chat_message("assistant"):
         with st.spinner("Thinking..."):
-            r = requests.post(API_URL, json={"question": user_q}, timeout=60)
-            r.raise_for_status()
-            answer = r.json()["answer"]
-            st.markdown(answer)
+            try:
+                r = requests.post(API_URL, json={"question": user_q}, timeout=60)
+                r.raise_for_status()
+                answer = r.json().get("answer", "")
+                if not answer:
+                    answer = "No answer returned from API."
+                st.markdown(answer)
+            except requests.exceptions.RequestException as e:
+                st.error(f"Could not reach API at {API_URL}. Is the backend running?\n\nDetails: {e}")
+                answer = f"Error: {e}"
 
     st.session_state.messages.append({"role": "assistant", "content": answer})
