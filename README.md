@@ -38,6 +38,8 @@ rag_lab_mustafa_hassan/
 └── requirements.txt
 ## Installation (lokalt)
 
+## Installation (lokalt)
+
 ### 1. Skapa virtuell miljö
 ```bash
 python3 -m venv .venv
@@ -48,19 +50,20 @@ pip install -r requirements.txt
 Steg 1 – Indexera dokument
 Dokumenten i knowledge_base/ måste indexeras innan frågor kan ställas.
 python ingestion.py
-Steg 2 – Starta FastAPI
+
+####Steg 2 – Starta FastAPI
 python -m uvicorn api:app --host 127.0.0.1 --port 8001
 Testa API
 curl -X POST http://127.0.0.1:8001/rag/query \
   -H "Content-Type: application/json" \
   -d '{"question":"What is RAG?"}'
-Steg 3 – Azure Functions (lokalt)
+###Steg 3 – Azure Functions (lokalt)
 func start
 Testa Azure Function
 curl -X POST http://127.0.0.1:7071/api/rag/query \
   -H "Content-Type: application/json" \
   -d '{"question":"What is RAG?"}'
-Steg 4 – Streamlit frontend
+###Steg 4 – Streamlit frontend
 streamlit run frontend/app.py
 Öppna i webbläsaren:
 http://localhost:8501
@@ -69,3 +72,4 @@ Projektet kan deployas till Azure Functions.
 func azure functionapp publish <FUNCTION_APP_NAME>
 Endpoint:
 https://<FUNCTION_APP_NAME>.azurewebsites.net/api/rag/query
+
