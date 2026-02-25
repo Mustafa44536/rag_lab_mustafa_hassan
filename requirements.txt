@@ -1,5 +1,9 @@
+pydantic-ai
+sentence-transformers
+lancedb
+fastapi
+uvicorn
+streamlit
+requests
 azure-functions
 python-dotenv
-lancedb
-sentence-transformers
-pydantic-ai
